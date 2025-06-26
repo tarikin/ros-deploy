@@ -149,8 +149,7 @@ fi
 execute_routeros_script() {
     local host="$1"
     local user="admin"  # default user
-    local port="22"     # default SSH port
-    local scp_port="22" # default SCP port (RouterOS uses same port for SCP and SSH)
+    local port="22"     # default SSH/SCP port (RouterOS uses the same port for both)
     local target
     
     # Extract user if specified
@@ -160,9 +159,9 @@ execute_routeros_script() {
     fi
     
     # Extract port if specified
+    # Extract port if specified (format: hostname:port or user@hostname:port)
     if [[ "$host" == *":"* ]]; then
         port="${host##*:}"
-        scp_port="$port"
         host="${host%:*}"
     fi
     
@@ -179,7 +178,7 @@ execute_routeros_script() {
     # 1. First, copy the script to the router using SCP
     echo "Uploading script to router..."
     # shellcheck disable=SC2086
-    if scp ${ssh_opts[*]} -P "$scp_port" "$SCRIPT_FILE" "$target:$TEMP_SCRIPT_NAME"; then
+    if scp ${ssh_opts[*]} -P "$port" "$SCRIPT_FILE" "$target:$TEMP_SCRIPT_NAME"; then
         
         echo "Script uploaded successfully, executing..."
         
