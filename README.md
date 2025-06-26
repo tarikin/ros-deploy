@@ -38,6 +38,43 @@ Manually logging into each RouterOS device to upload and execute a script is ted
     chmod +x ros-deploy.sh
     ```
 
+## Global Installation
+
+For easier access, you can install `ros-deploy` globally on your system:
+
+### One-liner Installation
+
+Install `ros-deploy` with a single command:
+
+```bash
+sudo curl -sSL https://raw.githubusercontent.com/tarikin/ros-deploy/main/ros-deploy.sh -o /usr/local/bin/ros-deploy && \
+sudo chmod +x /usr/local/bin/ros-deploy
+```
+
+### Manual Installation
+
+Alternatively, you can install it manually:
+
+```bash
+# Download the script
+curl -O https://raw.githubusercontent.com/tarikin/ros-deploy/main/ros-deploy.sh
+
+# Make it executable
+chmod +x ros-deploy.sh
+
+# Move to a directory in your PATH (requires sudo)
+sudo mv ros-deploy.sh /usr/local/bin/ros-deploy
+```
+
+After installation, you can run it from anywhere:
+```bash
+ros-deploy -h admin@router.local -s config.rsc
+```
+
+### Updating
+
+To update to the latest version, simply re-run the installation command.
+
 That's it! You're ready to go.
 
 ## Usage
