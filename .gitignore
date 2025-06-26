@@ -1,0 +1,8 @@
+# Hosts
+hosts/*
+
+# Deployments
+deployments/*
+
+# Scripts
+scripts/*
