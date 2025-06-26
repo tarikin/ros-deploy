@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # ros-deploy.sh - Bulk RouterOS Script Deployment Tool
-# Version: 1.1.0 (2025-06-26)
+# Version: 1.2.0 (2025-06-26)
 #
 # A powerful and flexible tool for deploying RouterOS scripts to multiple
 # MikroTik devices simultaneously via SSH. It supports both single-host
@@ -28,23 +28,60 @@ set -euo pipefail
 
 # Default values
 DEFAULT_CONNECT_TIMEOUT=5  # Default connection timeout in seconds
+NO_COLOR=false  # Default color output enabled
+
+# Color codes (only used when output is a terminal and NO_COLOR is false)
+if [ -t 1 ] && ! $NO_COLOR; then
+    COLOR_RESET='\033[0m'
+    COLOR_BOLD='\033[1m'
+    COLOR_RED='\033[1;31m'
+    COLOR_GREEN='\033[1;32m'
+    COLOR_YELLOW='\033[1;33m'
+    COLOR_BLUE='\033[1;34m'
+    COLOR_CYAN='\033[1;36m'
+else
+    COLOR_RESET='' COLOR_BOLD='' COLOR_RED='' COLOR_GREEN='' COLOR_YELLOW='' COLOR_BLUE='' COLOR_CYAN=''
+fi
+
+# Helper functions for colored output
+info() {
+    echo -e "${COLOR_BLUE}ℹ $*${COLOR_RESET}"
+}
+
+success() {
+    echo -e "${COLOR_GREEN}✅ $*${COLOR_RESET}"
+}
+
+error() {
+    echo -e "${COLOR_RED}❌ Error: $*${COLOR_RESET}" >&2
+}
+
+warning() {
+    echo -e "${COLOR_YELLOW}⚠ $*${COLOR_RESET}" >&2
+}
+
+section() {
+    echo -e "\n${COLOR_CYAN}=== $* ===${COLOR_RESET}"
+}
 
 # Help message
 show_help() {
-    echo "Deploy RouterOS scripts to one or more devices"
+    echo "${COLOR_BOLD}Deploy RouterOS scripts to one or more devices${COLOR_RESET}"
     echo ""
-    echo "Usage: $0 [OPTIONS] (-h HOST | -H HOSTS_FILE) -s SCRIPT_FILE"
+    echo "${COLOR_BOLD}Usage:${COLOR_RESET} $0 [OPTIONS] (-h HOST | -H HOSTS_FILE) -s SCRIPT_FILE"
     echo ""
-    echo "Options:"
+    echo "${COLOR_BOLD}Options:${COLOR_RESET}"
     echo "      --help            Show this help message and exit"
     echo "  -h, --host HOST        Single RouterOS device to deploy to (format: [user@]hostname[:port])"
     echo "  -H, --hosts FILE       File containing list of RouterOS devices (one per line, format: [user@]hostname[:port])"
     echo "  -s, --script FILE     RouterOS script file to execute"
     echo "  -t, --timeout SECONDS Connection timeout in seconds (default: $DEFAULT_CONNECT_TIMEOUT)"
     echo "  -i, --identity FILE  SSH private key file to use for authentication"
+    echo "      --no-color       Disable colored output"
     echo ""
-    echo "Example:"
+    echo "${COLOR_BOLD}Examples:${COLOR_RESET}"
     echo "  $0 -H routers.txt -s config.rsc -t 10"
+    echo "  $0 -h admin@router.local -s config.rsc --no-color"
     exit 0
 }
 
@@ -54,11 +91,20 @@ SINGLE_HOST=""
 SCRIPT_FILE=""
 CONNECT_TIMEOUT="$DEFAULT_CONNECT_TIMEOUT"
 IDENTITY_FILE=""
+NO_COLOR=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --help)
             show_help
+            ;;
+        --no-color)
+            NO_COLOR=true
+            # Re-initialize colors if needed
+            if $NO_COLOR; then
+                COLOR_RESET='' COLOR_BOLD='' COLOR_RED='' COLOR_GREEN='' COLOR_YELLOW='' COLOR_BLUE='' COLOR_CYAN=''
+            fi
+            shift
             ;;
         -h|--host)
             if [ -z "$2" ] || [[ "$2" == -* ]]; then
@@ -129,18 +175,18 @@ TEMP_SCRIPT_NAME="$(basename "$SCRIPT_FILE")"
 
 # Check if files exist
 if [ -n "$HOSTS_FILE" ] && [ ! -f "$HOSTS_FILE" ]; then
-    echo "Error: Hosts file '$HOSTS_FILE' not found" >&2
+    error "Hosts file '$HOSTS_FILE' not found"
     echo "Please create a file with a list of routers, one per line, in format: [user@]hostname[:port]" >&2
     exit 1
 fi
 
 if [ -n "$IDENTITY_FILE" ] && [ ! -f "$IDENTITY_FILE" ]; then
-    echo "Error: Identity file '$IDENTITY_FILE' not found" >&2
+    error "Identity file '$IDENTITY_FILE' not found"
     exit 1
 fi
 
 if [ ! -f "$SCRIPT_FILE" ]; then
-    echo "Error: RouterOS script file '$SCRIPT_FILE' not found" >&2
+    error "RouterOS script file '$SCRIPT_FILE' not found"
     echo "Please specify a valid RouterOS script file to execute" >&2
     exit 1
 fi
@@ -167,7 +213,7 @@ execute_routeros_script() {
     
     target="$user@$host"
     
-    echo -e "\n=== [$(date +'%Y-%m-%d %H:%M:%S')] Processing $target (port $port) ==="
+    section "[$(date +'%Y-%m-%d %H:%M:%S')] Processing $target (port $port)"
     
     # Build base SSH/SCP options
     local ssh_opts=("-o BatchMode=yes" "-o ConnectTimeout=$CONNECT_TIMEOUT" "-o StrictHostKeyChecking=accept-new")
@@ -176,23 +222,23 @@ execute_routeros_script() {
     fi
 
     # 1. First, copy the script to the router using SCP
-    echo "Uploading script to router..."
+    info "Uploading script to router..."
     # shellcheck disable=SC2086
     if scp ${ssh_opts[*]} -P "$port" "$SCRIPT_FILE" "$target:$TEMP_SCRIPT_NAME"; then
         
-        echo "Script uploaded successfully, executing..."
+        info "Script uploaded successfully, executing..."
         
         # 2. Only execute SSH if SCP was successful
         # shellcheck disable=SC2086
         if ssh ${ssh_opts[*]} -p "$port" "$target" "/import verbose=no $TEMP_SCRIPT_NAME; /file/remove $TEMP_SCRIPT_NAME"; then
-            echo "✅ Successfully executed script on $target"
+            success "Successfully executed script on $target"
             return 0
         else
-            echo "❌ Error: Failed to execute script on $target" >&2
+            error "Failed to execute script on $target"
             return 1
         fi
     else
-        echo "❌ Error: Failed to upload script to $target" >&2
+        error "Failed to upload script to $target"
         return 1
     fi
 }
@@ -203,17 +249,17 @@ TOTAL=0
 SUCCESS=0
 
 # Process hosts
-echo "Starting RouterOS deployment..."
+section "Starting RouterOS deployment"
 if [ -n "$SINGLE_HOST" ]; then
-    echo "Single host:   $SINGLE_HOST"
+    info "Single host:   $SINGLE_HOST"
 fi
 if [ -n "$HOSTS_FILE" ]; then
-    echo "Hosts file:    $HOSTS_FILE"
+    info "Hosts file:    $HOSTS_FILE"
 fi
-echo "Script file:   $SCRIPT_FILE"
-echo "Connect timeout: $CONNECT_TIMEOUT seconds"
-echo "SSH Key:       $(ssh-add -l 2>/dev/null || echo "No SSH key loaded in agent")"
-echo "----------------------------------------"
+info "Script file:   $SCRIPT_FILE"
+info "Connect timeout: $CONNECT_TIMEOUT seconds"
+info "SSH Key:       $(ssh-add -l 2>/dev/null || echo "No SSH key loaded in agent")"
+echo -e "${COLOR_YELLOW}----------------------------------------${COLOR_RESET}"
 
 # Process single host if specified
 if [ -n "$SINGLE_HOST" ]; then
@@ -240,11 +286,11 @@ if [ -n "$HOSTS_FILE" ]; then
     done < "$HOSTS_FILE"
 
     if [ ${#HOSTS[@]} -eq 0 ]; then
-        echo "❌ Error: No valid hosts found in $HOSTS_FILE" >&2
+        error "${COLOR_RED}No valid hosts found in $HOSTS_FILE${COLOR_RESET}"
         exit 1
     fi
 
-    echo "Found ${#HOSTS[@]} host(s) in file"
+    success "${COLOR_GREEN}Found ${#HOSTS[@]} host(s) in file${COLOR_RESET}"
 
     # Process each host from the file
     for host in "${HOSTS[@]}"; do
@@ -258,16 +304,23 @@ if [ -n "$HOSTS_FILE" ]; then
 fi
 
 # Print summary
-echo -e "\n=== Deployment Summary ==="
-echo "Total hosts:    $TOTAL"
-echo "Successful:     $SUCCESS"
-echo "Failed:         ${#FAILED_HOSTS[@]}"
-
-if [ ${#FAILED_HOSTS[@]} -gt 0 ]; then
-    echo -e "\nFailed hosts:"
-    printf '  - %s\n' "${FAILED_HOSTS[@]}"
-    exit 1
+section "Deployment Summary"
+info "Total hosts:    $TOTAL"
+if [ $SUCCESS -gt 0 ]; then
+    success "Successful:     $SUCCESS"
+else
+    info "Successful:     $SUCCESS"
 fi
 
-echo -e "\n✅ All deployments completed successfully!"
+if [ ${#FAILED_HOSTS[@]} -gt 0 ]; then
+    error "Failed:         ${#FAILED_HOSTS[@]}"
+    echo -e "\n${COLOR_RED}Failed hosts:${COLOR_RESET}"
+    printf '  - %s\n' "${FAILED_HOSTS[@]}"
+    exit 1
+else
+    success "Failed:         ${#FAILED_HOSTS[@]}"
+fi
+
+echo
+success "All deployments completed successfully!"
 exit 0
