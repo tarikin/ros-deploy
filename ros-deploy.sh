@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # ros-deploy.sh - Bulk RouterOS Script Deployment Tool
-# Version: 1.2.0 (2025-06-26)
+# Version: 1.2.1 (2025-06-26)
 #
 # A powerful and flexible tool for deploying RouterOS scripts to multiple
 # MikroTik devices simultaneously via SSH. It supports both single-host
@@ -64,24 +64,26 @@ section() {
     echo -e "\n${COLOR_CYAN}=== $* ===${COLOR_RESET}"
 }
 
-# Help message
+# Help message - uses plain echo to avoid color codes in output
 show_help() {
-    echo "${COLOR_BOLD}Deploy RouterOS scripts to one or more devices${COLOR_RESET}"
-    echo ""
-    echo "${COLOR_BOLD}Usage:${COLOR_RESET} $0 [OPTIONS] (-h HOST | -H HOSTS_FILE) -s SCRIPT_FILE"
-    echo ""
-    echo "${COLOR_BOLD}Options:${COLOR_RESET}"
-    echo "      --help            Show this help message and exit"
-    echo "  -h, --host HOST        Single RouterOS device to deploy to (format: [user@]hostname[:port])"
-    echo "  -H, --hosts FILE       File containing list of RouterOS devices (one per line, format: [user@]hostname[:port])"
-    echo "  -s, --script FILE     RouterOS script file to execute"
-    echo "  -t, --timeout SECONDS Connection timeout in seconds (default: $DEFAULT_CONNECT_TIMEOUT)"
-    echo "  -i, --identity FILE  SSH private key file to use for authentication"
-    echo "      --no-color       Disable colored output"
-    echo ""
-    echo "${COLOR_BOLD}Examples:${COLOR_RESET}"
-    echo "  $0 -H routers.txt -s config.rsc -t 10"
-    echo "  $0 -h admin@router.local -s config.rsc --no-color"
+    cat << 'EOF'
+Deploy RouterOS scripts to one or more devices
+
+Usage: ros-deploy [OPTIONS] (-h HOST | -H HOSTS_FILE) -s SCRIPT_FILE
+
+Options:
+      --help            Show this help message and exit
+  -h, --host HOST        Single RouterOS device to deploy to (format: [user@]hostname[:port])
+  -H, --hosts FILE       File containing list of RouterOS devices (one per line, format: [user@]hostname[:port])
+  -s, --script FILE     RouterOS script file to execute
+  -t, --timeout SECONDS Connection timeout in seconds (default: 5)
+  -i, --identity FILE  SSH private key file to use for authentication
+      --no-color       Disable colored output
+
+Examples:
+  ros-deploy -H routers.txt -s config.rsc -t 10
+  ros-deploy -h admin@router.local -s config.rsc --no-color
+EOF
     exit 0
 }
 
